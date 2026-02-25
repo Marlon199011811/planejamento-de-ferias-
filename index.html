@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard de Férias | Engenharia</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --ink:#0d1117; --ink2:#1c2433; --ink3:#2d3a50;
+  --surface:#f4f6fa; --card:#ffffff; --border:#e4e9f0;
+  --muted:#64748b; --muted2:#94a3b8;
+  --accent:#2563eb; --accent-lt:#dbeafe;
+  --green:#16a34a; --green-lt:#dcfce7;
+  --amber:#b45309; --amber-lt:#fef3c7;
+  --red:#dc2626; --red-lt:#fee2e2;
+  --blue:#0ea5e9; --blue-lt:#e0f2fe;
+  --r:14px; --rs:8px;
+  --sh:0 1px 3px rgba(0,0,0,.05),0 4px 16px rgba(0,0,0,.06);
+  --sh2:0 8px 32px rgba(0,0,0,.13);
+}
+html { scroll-behavior:smooth; }
+body { font-family:'DM Sans',sans-serif; background:var(--surface); color:var(--ink); min-height:100vh; }
+
+/* TOPBAR */
+.topbar { background:var(--ink); color:#fff; height:62px; padding:0 36px; display:flex; align-items:center; justify-content:space-between; position:sticky; top:0; z-index:200; box-shadow:0 2px 20px rgba(0,0,0,.25); }
+.brand { display:flex; align-items:center; gap:12px; }
+.brand-icon { width:34px; height:34px; background:var(--accent); border-radius:9px; display:flex; align-items:center; justify-content:center; font-size:17px; }
+.brand-name { font-size:14px; font-weight:700; letter-spacing:-.2px; }
+.brand-sub  { font-size:11px; color:#64748b; }
+.topbar-right { display:flex; align-items:center; gap:10px; }
+.top-date { font-family:'DM Mono',monospace; font-size:11px; color:#64748b; background:var(--ink2); padding:5px 11px; border-radius:6px; }
+#btnRefresh { display:flex; align-items:center; gap:6px; background:var(--ink2); border:1px solid #2d3a50; color:#94a3b8; padding:6px 14px; border-radius:8px; font-size:12px; font-family:'DM Sans',sans-serif; cursor:pointer; transition:.2s; }
+#btnRefresh:hover { background:var(--accent); color:#fff; border-color:var(--accent); }
+.spin { display:inline-block; animation:spin .8s linear infinite; }
+@keyframes spin { to { transform:rotate(360deg); } }
+
+/* SUMÁRIO */
+.summary-wrap { padding:28px 36px 0; display:grid; grid-template-columns:repeat(auto-fill,minmax(165px,1fr)); gap:14px; }
+.sum-card { background:var(--card); border:1px solid var(--border); border-radius:var(--r); padding:18px 20px; box-shadow:var(--sh); display:flex; align-items:center; gap:14px; transition:.2s; }
+.sum-card:hover { transform:translateY(-3px); box-shadow:var(--sh2); }
+.sum-ico   { width:42px; height:42px; border-radius:11px; display:flex; align-items:center; justify-content:center; font-size:19px; flex-shrink:0; }
+.sum-val   { font-size:26px; font-weight:700; letter-spacing:-1.5px; line-height:1; }
+.sum-label { font-size:10.5px; color:var(--muted); font-weight:600; text-transform:uppercase; letter-spacing:.5px; margin-top:3px; }
+
+/* FILTROS */
+.filters-wrap { padding:22px 36px 6px; display:flex; gap:12px; flex-wrap:wrap; align-items:flex-end; }
+.fg { display:flex; flex-direction:column; gap:4px; }
+.fg-label { font-size:10.5px; font-weight:600; color:var(--muted); text-transform:uppercase; letter-spacing:.5px; }
+.fg input,.fg select { height:38px; background:var(--card); border:1px solid var(--border); border-radius:var(--rs); padding:0 13px; font-size:13px; font-family:'DM Sans',sans-serif; color:var(--ink); outline:none; transition:.18s; }
+.fg input  { min-width:260px; }
+.fg select { min-width:150px; }
+.fg input:focus,.fg select:focus { border-color:var(--accent); box-shadow:0 0 0 3px rgba(37,99,235,.12); }
+#btnClear { height:38px; background:var(--card); border:1px solid var(--border); border-radius:var(--rs); padding:0 16px; font-size:12px; font-family:'DM Sans',sans-serif; color:var(--muted); cursor:pointer; transition:.2s; align-self:flex-end; }
+#btnClear:hover { border-color:var(--red); color:var(--red); }
+.result-count { align-self:flex-end; margin-left:auto; font-size:12px; color:var(--muted); }
+
+/* GRID */
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(295px,1fr)); gap:18px; padding:20px 36px 60px; }
+
+/* CARD */
+.card { background:var(--card); border:1px solid var(--border); border-radius:var(--r); box-shadow:var(--sh); overflow:hidden; display:flex; flex-direction:column; transition:.22s ease; animation:up .3s ease both; }
+.card:hover { transform:translateY(-4px); box-shadow:var(--sh2); border-color:#c7d7f7; }
+@keyframes up { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
+
+.ch { height:100px; position:relative; display:flex; align-items:center; justify-content:center; overflow:hidden; }
+.ch-bg { position:absolute; inset:0; background:linear-gradient(130deg,var(--ink2) 0%,var(--ink3) 100%); }
+.ch-bg::after { content:''; position:absolute; inset:0; background-image:radial-gradient(circle at 70% 50%,rgba(37,99,235,.25) 0%,transparent 60%); }
+.avatar { position:relative; z-index:2; width:66px; height:66px; border-radius:50%; border:2.5px solid rgba(255,255,255,.18); background:var(--ink3); display:flex; align-items:center; justify-content:center; font-size:26px; color:rgba(255,255,255,.35); overflow:hidden; flex-shrink:0; }
+.avatar img { width:100%; height:100%; object-fit:cover; border-radius:50%; }
+.avatar-wrap { position:relative; z-index:2; }
+.btn-photo { position:absolute; bottom:-2px; right:-2px; width:24px; height:24px; border-radius:50%; background:var(--accent); border:2px solid var(--card); color:#fff; font-size:13px; cursor:pointer; display:flex; align-items:center; justify-content:center; transition:.15s; user-select:none; }
+.btn-photo:hover { transform:scale(1.15); }
+.btn-photo.saving { background:var(--amber); animation:spin .8s linear infinite; pointer-events:none; }
+.tag-local { position:absolute; top:9px; left:9px; z-index:3; background:rgba(255,255,255,.13); backdrop-filter:blur(4px); border:1px solid rgba(255,255,255,.18); color:#fff; font-size:9.5px; font-weight:700; letter-spacing:.7px; padding:3px 8px; border-radius:5px; text-transform:uppercase; }
+.tag-status { position:absolute; top:9px; right:9px; z-index:3; }
+
+/* BODY */
+.cb { padding:16px 16px 12px; flex:1; display:flex; flex-direction:column; gap:10px; }
+.cb-name { font-size:13px; font-weight:700; line-height:1.35; }
+.cb-role { font-size:11px; color:var(--muted); margin-top:-6px; }
+.info-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.ii { background:var(--surface); border-radius:7px; padding:7px 9px; }
+.ii.full { grid-column:1/-1; }
+.ii-label { font-size:9.5px; font-weight:700; color:var(--muted2); text-transform:uppercase; letter-spacing:.5px; margin-bottom:2px; }
+.ii-val { font-size:11.5px; font-weight:600; color:var(--ink); font-family:'DM Mono',monospace; }
+.ii-val.accent { color:var(--accent); }
+.ii-val.green  { color:var(--green); }
+.ii-val.red    { color:var(--red); }
+.ii-val.amber  { color:var(--amber); }
+
+/* FOOTER */
+.cf { padding:10px 16px 14px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:6px; border-top:1px solid var(--border); }
+
+/* BADGES */
+.badge { display:inline-flex; align-items:center; gap:5px; padding:4px 10px; border-radius:20px; font-size:10px; font-weight:700; letter-spacing:.4px; text-transform:uppercase; white-space:nowrap; }
+.badge-dot { width:6px; height:6px; border-radius:50%; background:currentColor; opacity:.8; }
+.b-concluido { background:var(--green-lt); color:var(--green); }
+.b-ferias    { background:var(--blue-lt);  color:var(--blue); }
+.b-agendado  { background:var(--amber-lt); color:var(--amber); }
+.b-ativo     { background:var(--accent-lt);color:var(--accent); }
+.b-desligado { background:#f1f5f9;         color:#94a3b8; }
+.b-vencer    { background:var(--red-lt);   color:var(--red); }
+.b-undefined { background:#f1f5f9;         color:#94a3b8; }
+
+/* TOAST */
+.toast { position:fixed; bottom:28px; right:28px; z-index:9999; background:var(--ink); color:#fff; padding:12px 20px; border-radius:10px; font-size:13px; font-weight:500; box-shadow:var(--sh2); display:flex; align-items:center; gap:8px; opacity:0; transform:translateY(12px); transition:.3s ease; pointer-events:none; max-width:320px; }
+.toast.show { opacity:1; transform:translateY(0); }
+.toast.ok  { border-left:4px solid var(--green); }
+.toast.err { border-left:4px solid var(--red); }
+
+/* LOADING */
+.state-box { grid-column:1/-1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:80px 20px; color:var(--muted); font-size:14px; }
+.loader { width:40px; height:40px; border:3px solid var(--border); border-top-color:var(--accent); border-radius:50%; animation:spin .7s linear infinite; }
+
+@media (max-width:640px) {
+  .topbar,.summary-wrap,.filters-wrap,.grid { padding-left:16px; padding-right:16px; }
+  .fg input { min-width:100%; }
+}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="brand">
+    <div class="brand-icon">🏖️</div>
+    <div class="brand-text">
+      <div class="brand-name">Dashboard de Férias</div>
+      <div class="brand-sub">Engenharia · 2025–2027</div>
+    </div>
+  </div>
+  <div class="topbar-right">
+    <div class="top-date" id="topDate"></div>
+    <button id="btnRefresh" onclick="loadData()"><span id="refreshIcon">↻</span> Atualizar</button>
+  </div>
+</div>
+
+<div class="summary-wrap" id="summary"></div>
+
+<div class="filters-wrap">
+  <div class="fg"><span class="fg-label">🔍 Buscar</span><input type="text" id="fSearch" placeholder="Nome, função, equipe..."></div>
+  <div class="fg"><span class="fg-label">📍 Local</span><select id="fLocal"><option value="">Todos</option></select></div>
+  <div class="fg"><span class="fg-label">🏢 Setor</span><select id="fSetor"><option value="">Todos</option></select></div>
+  <div class="fg"><span class="fg-label">👥 Equipe</span><select id="fEquipe"><option value="">Todas</option></select></div>
+  <div class="fg"><span class="fg-label">🔧 Função</span><select id="fFuncao"><option value="">Todas</option></select></div>
+  <div class="fg"><span class="fg-label">📅 Per. Aquisitivo</span><select id="fPeriodo"><option value="">Todos</option></select></div>
+  <div class="fg"><span class="fg-label">📊 Status</span><select id="fStatus"><option value="">Todos</option></select></div>
+  <button id="btnClear" onclick="clearFilters()">✕ Limpar</button>
+  <span class="result-count" id="resultCount"></span>
+</div>
+
+<div class="grid" id="mainGrid">
+  <div class="state-box"><div class="loader"></div><span>Carregando dados...</span></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ══════════════════════════════════════════
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx2zKdO0mATdM0vTBxNd037wXVbCkwtimVq7MEj8oWI1d7JYb27koKRe_-vgAvai4k/exec";
+// ══════════════════════════════════════════
+
+let allData = [];
+
+document.addEventListener('DOMContentLoaded', () => {
+  updateClock();
+  setInterval(updateClock, 60000);
+  loadData();
+  ['fSearch','fLocal','fSetor','fEquipe','fFuncao','fPeriodo','fStatus'].forEach(id => {
+    document.getElementById(id).addEventListener('input', renderCards);
+    document.getElementById(id).addEventListener('change', renderCards);
+  });
+});
+
+function updateClock() {
+  document.getElementById('topDate').textContent =
+    new Date().toLocaleDateString('pt-BR',{weekday:'short',day:'2-digit',month:'short',year:'numeric'});
+}
+
+/* ── LOAD DATA ── */
+async function loadData() {
+  const icon = document.getElementById('refreshIcon');
+  icon.className = 'spin';
+  document.getElementById('mainGrid').innerHTML =
+    '<div class="state-box"><div class="loader"></div><span>Carregando dados...</span></div>';
+  try {
+    const res  = await fetch(APPS_SCRIPT_URL);
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error || 'Erro desconhecido');
+    allData = json.data;
+    populateFilters();
+    renderCards();
+  } catch(e) {
+    document.getElementById('mainGrid').innerHTML =
+      `<div class="state-box">
+        <span style="font-size:32px">⚠️</span>
+        <strong>Erro ao carregar dados</strong>
+        <span style="font-size:12px;max-width:400px;text-align:center">${e.message}</span>
+        <button onclick="loadData()" style="margin-top:8px;padding:8px 20px;background:var(--accent);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px">Tentar novamente</button>
+      </div>`;
+  } finally {
+    icon.className = '';
+  }
+}
+
+/* ── SALVAR FOTO via GET (evita CORS) ── */
+async function savePhoto(rowIndex, base64, btnEl) {
+  btnEl.className = 'btn-photo saving';
+  btnEl.textContent = '↻';
+
+  try {
+    // Envia base64 como parâmetro GET — Apps Script aceita sem bloqueio CORS
+    const url = `${APPS_SCRIPT_URL}?action=savePhoto&rowIndex=${rowIndex}&foto=${encodeURIComponent(base64)}`;
+    const res  = await fetch(url);
+    const json = await res.json();
+
+    if (!json.ok) throw new Error(json.error);
+
+    const item = allData.find(c => c.rowIndex === rowIndex);
+    if (item) item.foto = base64;
+
+    showToast('✓ Foto salva na planilha!', 'ok');
+  } catch(e) {
+    showToast('✗ Erro ao salvar: ' + e.message, 'err');
+  } finally {
+    btnEl.className = 'btn-photo';
+    btnEl.textContent = '✎';
+  }
+}
+
+/* ── UPLOAD + COMPRESSÃO ── */
+function handlePhotoUpload(rowIndex, event, btnEl) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    const img = new Image();
+    img.onload = function() {
+      const canvas = document.createElement('canvas');
+      const MAX = 180; // pequeno o suficiente para caber na URL
+      const ratio = Math.min(MAX / img.width, MAX / img.height);
+      canvas.width  = Math.round(img.width  * ratio);
+      canvas.height = Math.round(img.height * ratio);
+      canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+      const base64 = canvas.toDataURL('image/jpeg', 0.65);
+
+      // Atualiza avatar na tela imediatamente
+      const av = document.getElementById(`av-${rowIndex}`);
+      if (av) av.innerHTML = `<img src="${base64}" alt="foto">`;
+
+      savePhoto(rowIndex, base64, btnEl);
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+}
+
+/* ── STATUS ── */
+function calcStatus(c) {
+  const hoje = new Date(); hoje.setHours(0,0,0,0);
+  if (['DESLIGADO','INATIVO','DEMITIDO'].includes((c.status||'').toUpperCase())) return 'DESLIGADO';
+  const ini = parseDate(c.inicioFerias);
+  const fim = parseDate(c.fimFerias);
+  if (ini && fim) {
+    if (hoje > fim) return 'CONCLUÍDA';
+    if (hoje >= ini && hoje <= fim) return 'EM FÉRIAS';
+    const lim = parseDate(c.limDobra);
+    if (lim && lim >= hoje && Math.ceil((lim-hoje)/86400000) <= 30) return 'A VENCER';
+    return 'AGENDADO';
+  }
+  if (ini && !fim) return 'AGENDADO';
+  const s = (c.status||'').toUpperCase();
+  if (s === 'FERIAS') return 'EM FÉRIAS';
+  if (s === 'ATIVO')  return 'ATIVO';
+  return s || 'ATIVO';
+}
+
+function parseDate(str) {
+  if (!str || str === '—' || str === '---') return null;
+  const p = str.split('/');
+  if (p.length !== 3) return null;
+  const d = new Date(+p[2], +p[1]-1, +p[0]);
+  return isNaN(d) ? null : d;
+}
+
+/* ── FILTROS ── */
+function populateFilters() {
+  const sets = {fLocal:{},fSetor:{},fEquipe:{},fFuncao:{},fPeriodo:{},fStatus:{}};
+  allData.forEach(c => {
+    if (c.local  && c.local  !== '—') sets.fLocal[c.local]   = 1;
+    if (c.setor  && c.setor  !== '—') sets.fSetor[c.setor]   = 1;
+    if (c.equipe && c.equipe !== '—') sets.fEquipe[c.equipe] = 1;
+    if (c.funcao && c.funcao !== '—') sets.fFuncao[c.funcao] = 1;
+    if (c.perAquisitivo && c.perAquisitivo !== '—') sets.fPeriodo[c.perAquisitivo] = 1;
+    sets.fStatus[calcStatus(c)] = 1;
+  });
+  Object.entries(sets).forEach(([id, obj]) => {
+    const sel = document.getElementById(id);
+    const cur = sel.value;
+    while (sel.options.length > 1) sel.remove(1);
+    Object.keys(obj).sort().forEach(v => {
+      const o = document.createElement('option');
+      o.value = v; o.textContent = v; sel.appendChild(o);
+    });
+    sel.value = cur;
+  });
+}
+
+function clearFilters() {
+  ['fSearch','fLocal','fSetor','fEquipe','fFuncao','fPeriodo','fStatus'].forEach(id => {
+    const el = document.getElementById(id);
+    el.tagName === 'INPUT' ? el.value = '' : el.selectedIndex = 0;
+  });
+  renderCards();
+}
+
+/* ── RENDER ── */
+function renderCards() {
+  const search  = document.getElementById('fSearch').value.toLowerCase();
+  const fLocal  = document.getElementById('fLocal').value;
+  const fSetor  = document.getElementById('fSetor').value;
+  const fEquipe = document.getElementById('fEquipe').value;
+  const fFuncao = document.getElementById('fFuncao').value;
+  const fPer    = document.getElementById('fPeriodo').value;
+  const fStatus = document.getElementById('fStatus').value;
+
+  const filtered = allData.filter(c => {
+    const s = calcStatus(c);
+    if (fLocal  && c.local  !== fLocal)  return false;
+    if (fSetor  && c.setor  !== fSetor)  return false;
+    if (fEquipe && c.equipe !== fEquipe) return false;
+    if (fFuncao && c.funcao !== fFuncao) return false;
+    if (fPer    && c.perAquisitivo !== fPer) return false;
+    if (fStatus && s !== fStatus)        return false;
+    if (search) {
+      const hay = `${c.nome} ${c.funcao} ${c.equipe} ${c.setor} ${c.local} ${c.turno}`.toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+
+  document.getElementById('resultCount').textContent =
+    `${filtered.length} colaborador${filtered.length!==1?'es':''}`;
+
+  renderSummary(filtered);
+
+  const grid = document.getElementById('mainGrid');
+  if (!filtered.length) {
+    grid.innerHTML = `<div class="state-box"><span style="font-size:32px">🔍</span><strong>Nenhum resultado encontrado</strong></div>`;
+    return;
+  }
+  grid.innerHTML = filtered.map((c,i) => cardHTML(c,i)).join('');
+}
+
+/* ── SUMÁRIO ── */
+function renderSummary(data) {
+  const ct = {total:data.length,ferias:0,agendado:0,concluido:0,vencer:0};
+  data.forEach(c => {
+    const s = calcStatus(c);
+    if (s==='EM FÉRIAS') ct.ferias++;
+    if (s==='AGENDADO')  ct.agendado++;
+    if (s==='CONCLUÍDA') ct.concluido++;
+    if (s==='A VENCER')  ct.vencer++;
+  });
+  document.getElementById('summary').innerHTML = `
+    <div class="sum-card"><div class="sum-ico" style="background:#e0f2fe">👨‍💼</div><div><div class="sum-val">${ct.total}</div><div class="sum-label">Total</div></div></div>
+    <div class="sum-card"><div class="sum-ico" style="background:var(--blue-lt)">🏖️</div><div><div class="sum-val" style="color:var(--blue)">${ct.ferias}</div><div class="sum-label">Em Férias</div></div></div>
+    <div class="sum-card"><div class="sum-ico" style="background:var(--amber-lt)">📅</div><div><div class="sum-val" style="color:var(--amber)">${ct.agendado}</div><div class="sum-label">Agendado</div></div></div>
+    <div class="sum-card"><div class="sum-ico" style="background:var(--green-lt)">✅</div><div><div class="sum-val" style="color:var(--green)">${ct.concluido}</div><div class="sum-label">Concluídas</div></div></div>
+    <div class="sum-card"><div class="sum-ico" style="background:var(--red-lt)">⚠️</div><div><div class="sum-val" style="color:var(--red)">${ct.vencer}</div><div class="sum-label">A Vencer</div></div></div>`;
+}
+
+/* ── CARD ── */
+function cardHTML(c, idx) {
+  const status = calcStatus(c);
+  const hoje   = new Date(); hoje.setHours(0,0,0,0);
+  const ini    = parseDate(c.inicioFerias);
+  const fim    = parseDate(c.fimFerias);
+  const lim    = parseDate(c.limDobra);
+
+  let diasLabel = '';
+  if (ini && ini > hoje) {
+    const d = Math.ceil((ini-hoje)/86400000);
+    diasLabel = `em ${d} dia${d!==1?'s':''}`;
+  } else if (ini && fim && hoje>=ini && hoje<=fim) {
+    const d = Math.ceil((fim-hoje)/86400000);
+    diasLabel = `${d} dia${d!==1?'s':''} restante${d!==1?'s':''}`;
+  }
+
+  let limClass = '';
+  if (lim) {
+    const diff = Math.ceil((lim-hoje)/86400000);
+    limClass = diff<0?'red':diff<=30?'amber':'green';
+  }
+
+  const fimIni = fim&&fim<hoje?'green':ini&&ini<=hoje?'accent':'';
+  const fotoSrc = (c.foto && c.foto!=='—') ? c.foto : null;
+  const ri = c.rowIndex;
+
+  const aprovBadge = c.aprovada && c.aprovada!=='—'
+    ? `<span class="badge" style="background:var(--green-lt);color:var(--green);font-size:9px;padding:3px 8px"><span class="badge-dot"></span>${c.aprovada}</span>`
+    : '';
+
+  return `
+  <div class="card" style="animation-delay:${Math.min(idx*0.04,0.5)}s">
+    <div class="ch">
+      <div class="ch-bg"></div>
+      <span class="tag-local">${c.local}</span>
+      <span class="tag-status">${badgeHTML(status)}</span>
+      <div class="avatar-wrap">
+        <div class="avatar" id="av-${ri}">${fotoSrc?`<img src="${fotoSrc}" alt="foto">`:'👤'}</div>
+        <label class="btn-photo" id="btnph-${ri}" title="Alterar foto" for="fph-${ri}">✎</label>
+        <input type="file" id="fph-${ri}" accept="image/*" style="display:none"
+          onchange="handlePhotoUpload(${ri},event,document.getElementById('btnph-${ri}'))">
+      </div>
+    </div>
+    <div class="cb">
+      <div>
+        <div class="cb-name">${c.nome}</div>
+        <div class="cb-role">${c.funcao!=='—'?c.funcao:''}</div>
+      </div>
+      <div class="info-grid">
+        <div class="ii"><div class="ii-label">Equipe</div><div class="ii-val">${c.equipe}</div></div>
+        <div class="ii"><div class="ii-label">Turno</div><div class="ii-val">${c.turno}</div></div>
+        <div class="ii full"><div class="ii-label">Período Aquisitivo</div><div class="ii-val accent">${c.perAquisitivo}</div></div>
+        <div class="ii"><div class="ii-label">Início Férias</div><div class="ii-val ${fimIni}">${c.inicioFerias}</div></div>
+        <div class="ii"><div class="ii-label">Final Férias</div><div class="ii-val ${fimIni}">${c.fimFerias}</div></div>
+        <div class="ii"><div class="ii-label">Lim. S/Dobra</div><div class="ii-val ${limClass}">${c.limDobra}</div></div>
+        <div class="ii"><div class="ii-label">Período</div><div class="ii-val">${c.periodo}</div></div>
+      </div>
+    </div>
+    <div class="cf">
+      <span style="font-size:11px;color:var(--muted)">${c.admissao!=='—'?'📆 Adm: '+c.admissao:''}</span>
+      <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+        ${aprovBadge}
+        ${diasLabel?`<span style="font-size:11px;font-weight:600;color:var(--accent)">${diasLabel}</span>`:''}
+      </div>
+    </div>
+  </div>`;
+}
+
+function badgeHTML(status) {
+  const map = {
+    'CONCLUÍDA':['b-concluido','✓ Concluída'],
+    'EM FÉRIAS':['b-ferias','🏖 Em Férias'],
+    'AGENDADO': ['b-agendado','📅 Agendado'],
+    'A VENCER': ['b-vencer','⚠ A Vencer'],
+    'DESLIGADO':['b-desligado','— Desligado'],
+    'ATIVO':    ['b-ativo','● Ativo'],
+  };
+  const [cls,label] = map[status]||['b-undefined',status];
+  return `<span class="badge ${cls}"><span class="badge-dot"></span>${label}</span>`;
+}
+
+function showToast(msg, type='ok') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} show`;
+  setTimeout(() => t.className='toast', 3500);
+}
+</script>
+</body>
+</html>
