@@ -227,7 +227,6 @@ body {
   position: absolute; inset: 0;
   background: radial-gradient(ellipse at 75% 40%, rgba(37,99,235,.3) 0%, transparent 65%);
 }
-/* linha decorativa sutil */
 .ch-bg::before {
   content: '';
   position: absolute;
@@ -612,6 +611,9 @@ body {
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
 
+<!-- Input de foto global (usado pelo modal) -->
+<input type="file" id="globalFotoInput" accept="image/*" style="display:none">
+
 <script>
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx2zKdO0mATdM0vTBxNd037wXVbCkwtimVq7MEj8oWI1d7JYb27koKRe_-vgAvai4k/exec";
 
@@ -659,34 +661,8 @@ async function loadData() {
   }
 }
 
-/* ── FOTO ── */
-async function savePhoto(rowIndex, base64, btnEl) {
-  btnEl.className = 'btn-photo saving';
-  btnEl.textContent = '↻';
-  try {
-    const url = `${APPS_SCRIPT_URL}?action=savePhoto&rowIndex=${rowIndex}&foto=${encodeURIComponent(base64)}`;
-    const res  = await fetch(url);
-    const json = await res.json();
-    if (!json.ok) throw new Error(json.error);
-    const item = allData.find(c => c.rowIndex === rowIndex);
-    if (item) item.foto = base64;
-    // Atualiza também o modal se estiver aberto
-    const mAv = document.getElementById('mAvatar');
-    if (mAv && mAv.dataset.ri == rowIndex) {
-      mAv.innerHTML = `<img src="${base64}" alt="foto">`;
-    }
-    showToast('✓ Foto salva na planilha!', 'ok');
-  } catch(e) {
-    showToast('✗ Erro ao salvar: ' + e.message, 'err');
-  } finally {
-    btnEl.className = 'btn-photo';
-    btnEl.textContent = '✎';
-  }
-}
-
-function handlePhotoUpload(rowIndex, event, btnEl) {
-  const file = event.target.files[0];
-  if (!file) return;
+/* ── FOTO: converte imagem para base64 comprimido ── */
+function resizeToBase64(file, callback) {
   const reader = new FileReader();
   reader.onload = function(ev) {
     const img = new Image();
@@ -697,14 +673,77 @@ function handlePhotoUpload(rowIndex, event, btnEl) {
       canvas.width  = Math.round(img.width  * ratio);
       canvas.height = Math.round(img.height * ratio);
       canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-      const base64 = canvas.toDataURL('image/jpeg', 0.65);
-      const av = document.getElementById(`av-${rowIndex}`);
-      if (av) av.innerHTML = `<img src="${base64}" alt="foto">`;
-      savePhoto(rowIndex, base64, btnEl);
+      callback(canvas.toDataURL('image/jpeg', 0.65));
     };
     img.src = ev.target.result;
   };
   reader.readAsDataURL(file);
+}
+
+/* ── FOTO: salva via POST (corrige limite de URL e encoding) ── */
+async function savePhoto(rowIndex, base64) {
+  // Feedback visual: botão no card
+  const cardBtn = document.getElementById(`btnph-${rowIndex}`);
+  if (cardBtn) {
+    cardBtn.className = 'btn-photo saving';
+    cardBtn.textContent = '↻';
+  }
+
+  // Feedback visual: botão no modal (se aberto)
+  const modalBtn = document.getElementById('modalFotoBtn');
+  if (modalBtn && modalBtn.dataset.ri == rowIndex) {
+    modalBtn.textContent = '⏳ Salvando...';
+    modalBtn.style.pointerEvents = 'none';
+  }
+
+  try {
+    // ✅ FIX PRINCIPAL: usa POST com Content-Type text/plain
+    // Apps Script rejeita application/json (preflight CORS).
+    // Com text/plain o browser não faz preflight e o doPost recebe normalmente.
+    const res  = await fetch(APPS_SCRIPT_URL, {
+      method:  'POST',
+      headers: { 'Content-Type': 'text/plain' },
+      body:    JSON.stringify({ action: 'savePhoto', rowIndex, foto: base64 })
+    });
+    const json = await res.json();
+    if (!json.ok) throw new Error(json.error);
+
+    // Atualiza cache local
+    const item = allData.find(c => c.rowIndex === rowIndex);
+    if (item) item.foto = base64;
+
+    // Atualiza avatar no card
+    const av = document.getElementById(`av-${rowIndex}`);
+    if (av) av.innerHTML = `<img src="${base64}" alt="foto">`;
+
+    // Atualiza avatar no modal se estiver aberto para este colaborador
+    const mAv = document.getElementById('mAvatar');
+    if (mAv && mAv.dataset.ri == rowIndex) {
+      mAv.innerHTML = `<img src="${base64}" alt="foto">`;
+    }
+
+    showToast('✓ Foto salva na planilha!', 'ok');
+  } catch(e) {
+    showToast('✗ Erro ao salvar: ' + e.message, 'err');
+  } finally {
+    if (cardBtn) {
+      cardBtn.className = 'btn-photo';
+      cardBtn.textContent = '✎';
+    }
+    if (modalBtn && modalBtn.dataset.ri == rowIndex) {
+      modalBtn.textContent = '✎ Alterar Foto';
+      modalBtn.style.pointerEvents = '';
+    }
+  }
+}
+
+/* ── FOTO: handler unificado para card e modal ── */
+function handlePhotoUpload(rowIndex, event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  // Limpa o input para permitir re-upload do mesmo arquivo
+  event.target.value = '';
+  resizeToBase64(file, (base64) => savePhoto(rowIndex, base64));
 }
 
 /* ── STATUS ── */
@@ -799,6 +838,14 @@ function renderCards() {
     return;
   }
   grid.innerHTML = filtered.map((c, i) => cardHTML(c, i)).join('');
+
+  // Vincula os inputs de foto dos cards após renderização
+  filtered.forEach(c => {
+    const input = document.getElementById(`fph-${c.rowIndex}`);
+    if (input) {
+      input.addEventListener('change', (e) => handlePhotoUpload(c.rowIndex, e));
+    }
+  });
 }
 
 /* ── SUMÁRIO ── */
@@ -825,7 +872,6 @@ function cardHTML(c, idx) {
   const hoje     = new Date(); hoje.setHours(0,0,0,0);
   const ini      = parseDate(c.inicioFerias);
   const fim      = parseDate(c.fimFerias);
-  const lim      = parseDate(c.limDobra);
   const fotoSrc  = (c.foto && c.foto !== '—') ? c.foto : null;
   const ri       = c.rowIndex;
 
@@ -838,11 +884,6 @@ function cardHTML(c, idx) {
     diasLabel = `${d} dia${d!==1?'s':''} restante${d!==1?'s':''}`;
   }
 
-  let limClass = '';
-  if (lim) {
-    const diff = Math.ceil((lim-hoje)/86400000);
-    limClass = diff < 0 ? 'red' : diff <= 30 ? 'amber' : 'green';
-  }
   const fimIni = fim && fim < hoje ? 'green' : ini && ini <= hoje ? 'accent' : '';
 
   return `
@@ -854,8 +895,7 @@ function cardHTML(c, idx) {
       <div class="avatar-wrap">
         <div class="avatar" id="av-${ri}">${fotoSrc ? `<img src="${fotoSrc}" alt="foto">` : '👤'}</div>
         <label class="btn-photo" id="btnph-${ri}" title="Alterar foto" for="fph-${ri}" onclick="event.stopPropagation()">✎</label>
-        <input type="file" id="fph-${ri}" accept="image/*" style="display:none"
-          onchange="handlePhotoUpload(${ri},event,document.getElementById('btnph-${ri}'))">
+        <input type="file" id="fph-${ri}" accept="image/*" style="display:none">
       </div>
     </div>
     <div class="cb">
@@ -882,7 +922,7 @@ function cardHTML(c, idx) {
 
 /* ── MODAL ── */
 function openModal(rowIndex) {
-  const c      = allData.find(x => x.rowIndex === rowIndex);
+  const c = allData.find(x => x.rowIndex === rowIndex);
   if (!c) return;
 
   const status   = calcStatus(c);
@@ -936,12 +976,20 @@ function openModal(rowIndex) {
         ${c.aprovada && c.aprovada !== '—' ? `<span class="badge b-concluido" style="font-size:9px">${c.aprovada}</span>` : ''}
         ${c.concluida && c.concluida !== '—' ? `<span class="badge b-concluido" style="font-size:9px">✓ ${c.concluida}</span>` : ''}
       </div>
-      <label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;background:var(--accent-lt);color:var(--accent);padding:7px 14px;border-radius:8px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase" for="mfph-${rowIndex}" onclick="event.stopPropagation()">
+      <button id="modalFotoBtn" data-ri="${rowIndex}"
+        style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;background:var(--accent-lt);color:var(--accent);padding:7px 14px;border-radius:8px;font-size:11px;font-weight:700;letter-spacing:.04em;text-transform:uppercase;border:none;"
+        onclick="document.getElementById('globalFotoInput').click(); event.stopPropagation()">
         ✎ Alterar Foto
-      </label>
-      <input type="file" id="mfph-${rowIndex}" accept="image/*" style="display:none"
-        onchange="handlePhotoUpload(${rowIndex},event,document.getElementById('btnph-${rowIndex}'))">
+      </button>
     </div>`;
+
+  // ✅ FIX: vincula o input global ao rowIndex atual do modal
+  const globalInput = document.getElementById('globalFotoInput');
+  globalInput.value = '';
+  // Remove listener anterior e adiciona novo
+  const newInput = globalInput.cloneNode(true);
+  globalInput.parentNode.replaceChild(newInput, globalInput);
+  newInput.addEventListener('change', (e) => handlePhotoUpload(rowIndex, e));
 
   document.getElementById('modalOverlay').classList.add('open');
   document.body.style.overflow = 'hidden';
