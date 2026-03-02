@@ -181,6 +181,33 @@ body {
   letter-spacing: .02em;
 }
 
+/* ══ LEGENDA ═════════════════════════════ */
+.legend-wrap {
+  padding: 0 40px 4px;
+  display: flex;
+  gap: 16px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--muted);
+  letter-spacing: .02em;
+}
+.legend-swatch {
+  width: 18px;
+  height: 14px;
+  border-radius: 4px;
+  border-width: 3px;
+  border-style: solid;
+}
+.legend-swatch.aprovada { border-color: #16a34a; background: #f0fdf4; }
+.legend-swatch.previsao { border-color: #dc2626; background: #fef2f2; }
+
 /* ══ GRID ════════════════════════════════ */
 .grid {
   display: grid;
@@ -207,6 +234,27 @@ body {
   box-shadow: var(--sh2);
   border-color: #b8cbf5;
 }
+
+/* ══ BORDAS DE DESTAQUE: APROVADA (verde) e PREVISÃO (vermelho) ══ */
+.card.card-aprovada {
+  border: 2.5px solid #16a34a;
+  box-shadow: var(--sh), 0 0 0 1px rgba(22,163,74,.15), 0 4px 20px rgba(22,163,74,.12);
+}
+.card.card-aprovada:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--sh2), 0 0 0 1px rgba(22,163,74,.2), 0 8px 32px rgba(22,163,74,.18);
+  border-color: #16a34a;
+}
+.card.card-previsao {
+  border: 2.5px solid #dc2626;
+  box-shadow: var(--sh), 0 0 0 1px rgba(220,38,38,.15), 0 4px 20px rgba(220,38,38,.12);
+}
+.card.card-previsao:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--sh2), 0 0 0 1px rgba(220,38,38,.2), 0 8px 32px rgba(220,38,38,.18);
+  border-color: #dc2626;
+}
+
 @keyframes up { from { opacity:0; transform:translateY(16px); } to { opacity:1; transform:translateY(0); } }
 
 /* Header do card */
@@ -233,6 +281,20 @@ body {
   bottom: 0; left: 0; right: 0;
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(255,255,255,.08), transparent);
+}
+
+/* Tarja colorida no topo do header para reforçar visualmente */
+.card.card-aprovada .ch-bg {
+  background: linear-gradient(135deg, #14532d 0%, #166534 60%, #15803d 100%);
+}
+.card.card-aprovada .ch-bg::after {
+  background: radial-gradient(ellipse at 75% 40%, rgba(22,163,74,.4) 0%, transparent 65%);
+}
+.card.card-previsao .ch-bg {
+  background: linear-gradient(135deg, #7f1d1d 0%, #991b1b 60%, #b91c1c 100%);
+}
+.card.card-previsao .ch-bg::after {
+  background: radial-gradient(ellipse at 75% 40%, rgba(220,38,38,.4) 0%, transparent 65%);
 }
 
 .avatar-wrap { position: relative; z-index: 2; }
@@ -546,7 +608,7 @@ body {
 }
 
 @media (max-width: 640px) {
-  .topbar, .summary-wrap, .filters-wrap, .grid { padding-left: 16px; padding-right: 16px; }
+  .topbar, .summary-wrap, .filters-wrap, .legend-wrap, .grid { padding-left: 16px; padding-right: 16px; }
   .fg input { min-width: 100%; }
   .modal { max-width: 100%; }
   .modal-grid { grid-template-columns: 1fr 1fr; }
@@ -585,6 +647,18 @@ body {
   <div class="fg"><span class="fg-label">Status</span><select id="fStatus"><option value="">Todos</option></select></div>
   <button id="btnClear" onclick="clearFilters()">✕ Limpar</button>
   <span class="result-count" id="resultCount"></span>
+</div>
+
+<!-- LEGENDA DE BORDAS -->
+<div class="legend-wrap">
+  <div class="legend-item">
+    <div class="legend-swatch aprovada"></div>
+    Férias Aprovada
+  </div>
+  <div class="legend-item">
+    <div class="legend-swatch previsao"></div>
+    Somente Previsão
+  </div>
 </div>
 
 <!-- GRID -->
@@ -680,16 +754,14 @@ function resizeToBase64(file, callback) {
   reader.readAsDataURL(file);
 }
 
-/* ── FOTO: salva via POST (corrige limite de URL e encoding) ── */
+/* ── FOTO: salva via POST ── */
 async function savePhoto(rowIndex, base64) {
-  // Feedback visual: botão no card
   const cardBtn = document.getElementById(`btnph-${rowIndex}`);
   if (cardBtn) {
     cardBtn.className = 'btn-photo saving';
     cardBtn.textContent = '↻';
   }
 
-  // Feedback visual: botão no modal (se aberto)
   const modalBtn = document.getElementById('modalFotoBtn');
   if (modalBtn && modalBtn.dataset.ri == rowIndex) {
     modalBtn.textContent = '⏳ Salvando...';
@@ -697,9 +769,6 @@ async function savePhoto(rowIndex, base64) {
   }
 
   try {
-    // ✅ FIX PRINCIPAL: usa POST com Content-Type text/plain
-    // Apps Script rejeita application/json (preflight CORS).
-    // Com text/plain o browser não faz preflight e o doPost recebe normalmente.
     const res  = await fetch(APPS_SCRIPT_URL, {
       method:  'POST',
       headers: { 'Content-Type': 'text/plain' },
@@ -708,15 +777,12 @@ async function savePhoto(rowIndex, base64) {
     const json = await res.json();
     if (!json.ok) throw new Error(json.error);
 
-    // Atualiza cache local
     const item = allData.find(c => c.rowIndex === rowIndex);
     if (item) item.foto = base64;
 
-    // Atualiza avatar no card
     const av = document.getElementById(`av-${rowIndex}`);
     if (av) av.innerHTML = `<img src="${base64}" alt="foto">`;
 
-    // Atualiza avatar no modal se estiver aberto para este colaborador
     const mAv = document.getElementById('mAvatar');
     if (mAv && mAv.dataset.ri == rowIndex) {
       mAv.innerHTML = `<img src="${base64}" alt="foto">`;
@@ -737,11 +803,10 @@ async function savePhoto(rowIndex, base64) {
   }
 }
 
-/* ── FOTO: handler unificado para card e modal ── */
+/* ── FOTO: handler unificado ── */
 function handlePhotoUpload(rowIndex, event) {
   const file = event.target.files[0];
   if (!file) return;
-  // Limpa o input para permitir re-upload do mesmo arquivo
   event.target.value = '';
   resizeToBase64(file, (base64) => savePhoto(rowIndex, base64));
 }
@@ -772,6 +837,17 @@ function parseDate(str) {
   if (p.length !== 3) return null;
   const d = new Date(+p[2], +p[1]-1, +p[0]);
   return isNaN(d) ? null : d;
+}
+
+/* ── DETECTA CLASSE DE BORDA DO CARD ──
+   Varre todos os campos do colaborador procurando
+   as palavras-chave APROVADA e PREVISÃO (case-insensitive).
+   APROVADA tem prioridade sobre PREVISÃO. ── */
+function cardBorderClass(c) {
+  const texto = Object.values(c).join(' ').toUpperCase();
+  if (texto.includes('APROVADA')) return 'card-aprovada';
+  if (texto.includes('PREVISÃO') || texto.includes('PREVISAO')) return 'card-previsao';
+  return '';
 }
 
 /* ── FILTROS ── */
@@ -839,7 +915,6 @@ function renderCards() {
   }
   grid.innerHTML = filtered.map((c, i) => cardHTML(c, i)).join('');
 
-  // Vincula os inputs de foto dos cards após renderização
   filtered.forEach(c => {
     const input = document.getElementById(`fph-${c.rowIndex}`);
     if (input) {
@@ -874,6 +949,7 @@ function cardHTML(c, idx) {
   const fim      = parseDate(c.fimFerias);
   const fotoSrc  = (c.foto && c.foto !== '—') ? c.foto : null;
   const ri       = c.rowIndex;
+  const borderCls = cardBorderClass(c); // ← NOVO: classe de borda colorida
 
   let diasLabel = '';
   if (ini && ini > hoje) {
@@ -887,7 +963,7 @@ function cardHTML(c, idx) {
   const fimIni = fim && fim < hoje ? 'green' : ini && ini <= hoje ? 'accent' : '';
 
   return `
-  <div class="card" style="animation-delay:${Math.min(idx*0.04,0.5)}s" onclick="openModal(${ri})">
+  <div class="card ${borderCls}" style="animation-delay:${Math.min(idx*0.04,0.5)}s" onclick="openModal(${ri})">
     <div class="ch">
       <div class="ch-bg"></div>
       <span class="tag-local">${c.local}</span>
@@ -939,7 +1015,6 @@ function openModal(rowIndex) {
   const fim    = parseDate(c.fimFerias);
   const fimIni = fim && fim < hoje ? 'green' : ini && ini <= hoje ? 'accent' : '';
 
-  // Header
   const mAv = document.getElementById('mAvatar');
   mAv.innerHTML = fotoSrc ? `<img src="${fotoSrc}" alt="foto">` : '👤';
   mAv.dataset.ri = rowIndex;
@@ -948,7 +1023,6 @@ function openModal(rowIndex) {
   document.getElementById('mRole').textContent = c.funcao !== '—' ? c.funcao : '';
   document.getElementById('mBadge').innerHTML  = badgeHTML(status);
 
-  // Body
   document.getElementById('mBody').innerHTML = `
     <div>
       <div class="modal-section-title">Identificação</div>
@@ -983,10 +1057,8 @@ function openModal(rowIndex) {
       </button>
     </div>`;
 
-  // ✅ FIX: vincula o input global ao rowIndex atual do modal
   const globalInput = document.getElementById('globalFotoInput');
   globalInput.value = '';
-  // Remove listener anterior e adiciona novo
   const newInput = globalInput.cloneNode(true);
   globalInput.parentNode.replaceChild(newInput, globalInput);
   newInput.addEventListener('change', (e) => handlePhotoUpload(rowIndex, e));
